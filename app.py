@@ -95,14 +95,14 @@ template = """
 
     {% if result %}
         <div class="result">
+            <p>💱 سعر الصرف: {{ result.exchange_rate }}</p>
+            <p>📉 سعر الصرف المعدل: {{ result.adjusted_rate }}</p>
             {% if values.is_cancelled == 'yes' %}
-                <p>💱 سعر الصرف: {{ result.exchange_rate }}</p>
-                <p>📉 سعر الصرف المعدل: {{ result.adjusted_rate }}</p>
-                <p>💰 الاسترجاع بالدينار: <strong>{{ result.refund_iqd }}</strong></p>
+                <p>💰 الاسترجاع الكامل بالدينار: <strong>{{ result.refund_iqd }}</strong></p>
             {% else %}
-                <p>💸 المبلغ قبل الخصم: {{ result.original_amount }}</p>
+                <p>💰 الاسترجاع قبل الخصم: {{ result.refund_iqd }}</p>
                 <p>🔻 نسبة الخصم: {{ result.discount_percent }}%</p>
-                <p>💰 المبلغ بعد الخصم: <strong>{{ result.final_amount }}</strong></p>
+                <p>💵 الاسترجاع النهائي: <strong>{{ result.final_refund }}</strong></p>
             {% endif %}
         </div>
     {% endif %}
@@ -128,32 +128,33 @@ def refund_calculator():
             refund_usd = float(values["refund_usd"])
             is_cancelled = values["is_cancelled"]
 
-            if is_cancelled == "yes":
-                exchange_rate = sales_iqd / sales_usd if sales_usd != 0 else 0
-                adjusted_rate = exchange_rate - 20
-                refund_iqd = refund_usd * adjusted_rate
+            exchange_rate = sales_iqd / sales_usd if sales_usd != 0 else 0
+            adjusted_rate = exchange_rate - 20
+            refund_iqd = refund_usd * adjusted_rate
+            refund_iqd_rounded = round(refund_iqd)
 
+            if is_cancelled == "yes":
                 result = {
                     "exchange_rate": f"{exchange_rate:.2f}",
                     "adjusted_rate": f"{adjusted_rate:.2f}",
-                    "refund_iqd": f"IQD {refund_iqd:,.0f} دينار"
+                    "refund_iqd": f"IQD {refund_iqd_rounded:,.0f} دينار"
                 }
-
             else:
-                original = sales_iqd
-                if original < 200000:
+                if refund_iqd < 200000:
                     discount_percent = 10
-                elif original <= 300000:
+                elif refund_iqd <= 300000:
                     discount_percent = 7.5
                 else:
                     discount_percent = 5
 
-                final = original * (1 - discount_percent / 100)
+                final_refund = refund_iqd * (1 - discount_percent / 100)
 
                 result = {
-                    "original_amount": f"IQD {original:,.0f}",
+                    "exchange_rate": f"{exchange_rate:.2f}",
+                    "adjusted_rate": f"{adjusted_rate:.2f}",
+                    "refund_iqd": f"IQD {refund_iqd_rounded:,.0f}",
                     "discount_percent": discount_percent,
-                    "final_amount": f"IQD {final:,.0f}"
+                    "final_refund": f"IQD {final_refund:,.0f} دينار"
                 }
 
         except Exception as e:
