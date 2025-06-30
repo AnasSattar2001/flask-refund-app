@@ -1,33 +1,41 @@
 from flask import Flask, request, render_template_string
+import os
 
 app = Flask(__name__)
 
+# HTML Template
 template = """
 <!DOCTYPE html>
 <html>
 <head>
     <title>Refund Calculator</title>
+    <style>
+        body { font-family: Arial; padding: 40px; direction: rtl; }
+        label, input { display: block; margin-bottom: 10px; }
+        input { padding: 5px; width: 300px; }
+        h2, h3 { color: #333; }
+    </style>
 </head>
 <body>
     <h2>حاسبة الاسترجاع</h2>
     <form method="post">
-        <label>المبيعات بالدولار (USD):</label><br>
-        <input type="number" step="0.01" name="sales_usd"><br><br>
-        
-        <label>المبيعات بالدينار (IQD):</label><br>
-        <input type="number" step="1" name="sales_iqd"><br><br>
-        
-        <label>الاسترجاع المطلوب بالدولار (USD):</label><br>
-        <input type="number" step="0.01" name="refund_usd"><br><br>
-        
-        <input type="submit" value="احسب الاسترجاع"><br><br>
+        <label>المبيعات بالدولار (USD):</label>
+        <input type="number" step="0.01" name="sales_usd" required>
+
+        <label>المبيعات بالدينار (IQD):</label>
+        <input type="number" step="1" name="sales_iqd" required>
+
+        <label>الاسترجاع المطلوب بالدولار (USD):</label>
+        <input type="number" step="0.01" name="refund_usd" required>
+
+        <input type="submit" value="احسب الاسترجاع">
     </form>
 
     {% if result %}
         <h3>النتائج:</h3>
-        <p>سعر الصرف: {{ result.exchange_rate }}</p>
-        <p>سعر الصرف المعدل: {{ result.adjusted_rate }}</p>
-        <p>الاسترجاع بالدينار: <strong>{{ result.refund_iqd }}</strong></p>
+        <p>💱 سعر الصرف: {{ result.exchange_rate }}</p>
+        <p>📉 سعر الصرف المعدل: {{ result.adjusted_rate }}</p>
+        <p>💰 الاسترجاع بالدينار: <strong>{{ result.refund_iqd }}</strong></p>
     {% endif %}
 </body>
 </html>
@@ -52,9 +60,11 @@ def refund_calculator():
                 "refund_iqd": f"IQD {refund_iqd:,.0f} دينار"
             }
         except Exception as e:
-            result = {"error": str(e)}
+            result = {"exchange_rate": "0", "adjusted_rate": "0", "refund_iqd": f"خطأ: {str(e)}"}
 
     return render_template_string(template, result=result)
 
+# ✅ مطلوب لـ Render حتى يشتغل التطبيق على الإنترنت
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
