@@ -26,7 +26,7 @@ template = """
             box-shadow: 0 0 20px rgba(255, 0, 0, 0.2);
             text-align: center;
             width: 100%;
-            max-width: 500px;
+            max-width: 550px;
         }
         h2 {
             color: #c40000;
@@ -37,7 +37,8 @@ template = """
             margin-bottom: 8px;
             text-align: right;
         }
-        input[type="number"] {
+        input[type="number"],
+        select {
             width: 100%;
             padding: 10px;
             border: 2px solid #ddd;
@@ -74,6 +75,12 @@ template = """
 <div class="container">
     <h2>حاسبة الاسترجاع</h2>
     <form method="post">
+        <label>هل الرحلة ملغية من الخطوط؟</label>
+        <select name="is_cancelled" required>
+            <option value="yes" {% if values.is_cancelled == 'yes' %}selected{% endif %}>نعم، ملغية من الخطوط</option>
+            <option value="no" {% if values.is_cancelled == 'no' %}selected{% endif %}>لا، ليست ملغية</option>
+        </select>
+
         <label>المبيعات بالدولار (USD):</label>
         <input type="number" step="0.01" name="sales_usd" required value="{{ values.sales_usd or '' }}">
 
@@ -88,9 +95,15 @@ template = """
 
     {% if result %}
         <div class="result">
-            <p>💱 سعر الصرف: {{ result.exchange_rate }}</p>
-            <p>📉 سعر الصرف المعدل: {{ result.adjusted_rate }}</p>
-            <p>💰 الاسترجاع بالدينار: <strong>{{ result.refund_iqd }}</strong></p>
+            {% if values.is_cancelled == 'yes' %}
+                <p>💱 سعر الصرف: {{ result.exchange_rate }}</p>
+                <p>📉 سعر الصرف المعدل: {{ result.adjusted_rate }}</p>
+                <p>💰 الاسترجاع بالدينار: <strong>{{ result.refund_iqd }}</strong></p>
+            {% else %}
+                <p>💸 المبلغ قبل الخصم: {{ result.original_amount }}</p>
+                <p>🔻 نسبة الخصم: {{ result.discount_percent }}%</p>
+                <p>💰 المبلغ بعد الخصم: <strong>{{ result.final_amount }}</strong></p>
+            {% endif %}
         </div>
     {% endif %}
 </div>
@@ -101,33 +114,50 @@ template = """
 @app.route("/", methods=["GET", "POST"])
 def refund_calculator():
     result = None
-    values = {"sales_usd": "", "sales_iqd": "", "refund_usd": ""}
+    values = {"sales_usd": "", "sales_iqd": "", "refund_usd": "", "is_cancelled": "yes"}
 
     if request.method == "POST":
         try:
-            sales_usd = float(request.form["sales_usd"])
-            sales_iqd = float(request.form["sales_iqd"])
-            refund_usd = float(request.form["refund_usd"])
+            values["sales_usd"] = request.form["sales_usd"]
+            values["sales_iqd"] = request.form["sales_iqd"]
+            values["refund_usd"] = request.form["refund_usd"]
+            values["is_cancelled"] = request.form["is_cancelled"]
 
-            exchange_rate = sales_iqd / sales_usd if sales_usd != 0 else 0
-            adjusted_rate = exchange_rate - 20
-            refund_iqd = refund_usd * adjusted_rate
+            sales_usd = float(values["sales_usd"])
+            sales_iqd = float(values["sales_iqd"])
+            refund_usd = float(values["refund_usd"])
+            is_cancelled = values["is_cancelled"]
 
-            result = {
-                "exchange_rate": f"{exchange_rate:.2f}",
-                "adjusted_rate": f"{adjusted_rate:.2f}",
-                "refund_iqd": f"IQD {refund_iqd:,.0f} دينار"
-            }
+            if is_cancelled == "yes":
+                exchange_rate = sales_iqd / sales_usd if sales_usd != 0 else 0
+                adjusted_rate = exchange_rate - 20
+                refund_iqd = refund_usd * adjusted_rate
 
-            # نحتفظ بالقيم اللي دخلها المستخدم
-            values = {
-                "sales_usd": request.form["sales_usd"],
-                "sales_iqd": request.form["sales_iqd"],
-                "refund_usd": request.form["refund_usd"]
-            }
+                result = {
+                    "exchange_rate": f"{exchange_rate:.2f}",
+                    "adjusted_rate": f"{adjusted_rate:.2f}",
+                    "refund_iqd": f"IQD {refund_iqd:,.0f} دينار"
+                }
+
+            else:
+                original = sales_iqd
+                if original < 200000:
+                    discount_percent = 10
+                elif original <= 300000:
+                    discount_percent = 7.5
+                else:
+                    discount_percent = 5
+
+                final = original * (1 - discount_percent / 100)
+
+                result = {
+                    "original_amount": f"IQD {original:,.0f}",
+                    "discount_percent": discount_percent,
+                    "final_amount": f"IQD {final:,.0f}"
+                }
 
         except Exception as e:
-            result = {"exchange_rate": "0", "adjusted_rate": "0", "refund_iqd": f"خطأ: {str(e)}"}
+            result = {"refund_iqd": f"خطأ: {str(e)}"}
 
     return render_template_string(template, result=result, values=values)
 
